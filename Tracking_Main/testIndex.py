@@ -34,11 +34,25 @@ def fingers_up(hand_landmarks):
     return fingers
 
 
+def compterNbrDoigt(fingers):
+    return sum(fingers)
+
+
+# Si mon petit doigt se lève je lance mappage
+def mappage (hand_landmarks):
+    return hand_landmarks.landmark[8].x,hand_landmarks.landmark[8].y
+
+
+
+# -------------------------
+# VARIABLES
+# -------------------------
 
 
 screen_w, screen_h = pyautogui.size()
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
+
 
 
 
@@ -53,15 +67,23 @@ if not cap.isOpened():
     print("Cannot open camera")
     exit()
 
-cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
+cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv.CAP_PROP_FRAME_HEIGHT, 720)
+
+
+coinSup = None
+coinInf = None
+calibrated = False
+
+
+prev_x, prev_y = pyautogui.position()
+
+
 
 while True:
     ret, frame = cap.read()
     frame = cv.flip(frame, 1)
-    if not ret:
-        print("prblm")
-        break
+
 
     rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
     results = hands.process(rgb)
@@ -69,40 +91,57 @@ while True:
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
 
-            # --- Récupérer le bout de l’index
-            h, w, c = frame.shape
-            index_tip = hand_landmarks.landmark[8]
-            cx, cy = int(index_tip.x * w), int(index_tip.y * h)
-
-            # --- Dessiner un point sur l’index
-            cv.circle(frame, (cx, cy), 10, (0, 255, 0), -1)
-
-            # --- Convertir en coordonnées écran (CORRECT)
-            mouse_x = int(index_tip.x * screen_w)
-            mouse_y = int(index_tip.y * screen_h)
-
-            pyautogui.moveTo(mouse_x, mouse_y)
-
 
             fingers = fingers_up(hand_landmarks)
 
-            # Exemple : index levé seul
-            if fingers == [0,1,0,0,0]:
-                print("Index levé → action 1")
+            if fingers[4] == 1 and coinSup is None:
+                coinSup = mappage(hand_landmarks)
+                print("Coin gauche : ", coinSup)
+            if fingers[2] == 1 and coinInf is None:
+                coinInf = mappage(hand_landmarks)
 
-            # Exemple : index + majeur
-            if fingers == [0,1,1,0,0]:
-                print("Index + majeur → action 2")
 
-            # Exemple : poing fermé
-            if fingers == [0,0,0,0,0]:
-                print("Poing → action 3")
+            if coinSup and coinInf:
+                h, w, c = frame.shape
 
-            # Exemple : main ouverte
-            if fingers == [1,1,1,1,1]:
-                print("Main ouverte → action 4")
+                x1 = int(coinSup[0] * w)
+                y1 = int(coinSup[1] * h)
+                x2 = int(coinInf[0] * w)
+                y2 = int(coinInf[1] * h)
 
-    cv.imshow('frame', frame)
+                cv.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                calibrated = True
+
+
+
+
+            if calibrated :
+                ix, iy = mappage(hand_landmarks);
+
+                # Normalisation dans la zone calibrée
+                norm_x = (ix - coinSup[0]) / (coinInf[0] - coinSup[0])
+                norm_x = 1 - norm_x
+                norm_y = (iy - coinSup[1]) / (coinInf[1] - coinSup[1])
+
+                # Clamp
+                norm_x = max(0, min(1, norm_x))
+                norm_y = max(0, min(1, norm_y))
+
+                # Conversion écran
+                mouse_x = norm_x * screen_w
+                mouse_y = norm_y * screen_h
+
+                # Smoothing
+                smooth_x = prev_x + (mouse_x - prev_x) * 0.2
+                smooth_y = prev_y + (mouse_y - prev_y) * 0.2
+
+                pyautogui.moveTo(smooth_x, smooth_y)
+
+                prev_x, prev_y = smooth_x, smooth_y
+
+            print(compterNbrDoigt(fingers))
+
+    cv.imshow("frame", frame)
     if cv.waitKey(1) == ord('q'):
         break
 
