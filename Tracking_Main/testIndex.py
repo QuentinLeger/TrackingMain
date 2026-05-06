@@ -44,6 +44,12 @@ def mappage (hand_landmarks):
 
 
 
+def click (fingers):
+    if fingers[0] == 1:
+        pyautogui.click()
+
+
+
 # -------------------------
 # VARIABLES
 # -------------------------
@@ -116,7 +122,7 @@ while True:
 
 
             if calibrated :
-                ix, iy = mappage(hand_landmarks);
+                ix, iy = mappage(hand_landmarks);q
 
                 # Normalisation dans la zone calibrée
                 norm_x = (ix - coinSup[0]) / (coinInf[0] - coinSup[0])
@@ -137,7 +143,9 @@ while True:
 
                 pyautogui.moveTo(smooth_x, smooth_y)
 
+
                 prev_x, prev_y = smooth_x, smooth_y
+                click(fingers)
 
             print(compterNbrDoigt(fingers))
 
